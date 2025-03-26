@@ -45,6 +45,7 @@ bool test_minus() {
 	BigDecimal a1("1.25", 200, 100), b1("0.5", 200, 100);
 	BigDecimal res1 = a1 - b1;
 	BigDecimal expected1("0.75", 200, 100);
+	//std::cout << (res1 == expected1) << std::endl;
 
 	BigDecimal a2("0.25", 200, 100), b2("0.5", 200, 100);
 	BigDecimal res2 = a2 - b2;
@@ -75,6 +76,42 @@ bool test_comparing_absolute_values() {
 	BigDecimal a3("17.75"), b3("17.7500");
 	return a1.compare_absolute_values(b1) && a2.compare_absolute_values(b2) && !a3.compare_absolute_values(b3);
 
+}
+
+bool test_bool_operators() {
+	BigDecimal a1("14.930000"), b1("14.93");
+	BigDecimal a2("-5.5"), b2("5.5");
+	BigDecimal a3("-0.15"), b3("-0.2");
+	BigDecimal a4("0.15"), b4("0.2");
+	BigDecimal a5("0.6"), b5("-12");
+	return (a1 == b1) && (a2 != b2) && (a3 >= b3) && (a3 != b3) && !(a3 < b3) && (a4 < b4) && (a4 <= b4) && (a1 <= b1) && (a1 >= b1) && (a5  > b5);
+}
+
+bool test_integer_multiplication() {
+	BigDecimal a1("6"), b1("5"), c1("30");
+	BigDecimal a2("0"), b2("14"), c2("0");
+	BigDecimal a3("-4"), b3("15"), c3("-60");
+	BigDecimal a4("-4"), b4("-15"), c4("60");
+	return (a1 * b1 == c1) && (a2 * b2 == c2) && (a3 * b3 == c3) && (a4 * b4 == c4);
+}
+
+bool test_integer_fraction_multiplication() {
+	BigDecimal a1("0.25"), b1("2"), c1("0.5");
+	BigDecimal a2("0.125"), b2("16"), c2("2");
+	return (a1 * b1 == c1) && (a2 * b2 == c2);
+}
+
+bool test_fraction_fraction_multiplication() {
+	BigDecimal a1("0.5"), b1("0.5"), c1("0.25");
+	BigDecimal a2("0.5"), b2("14.0025"), c2("7.00125");
+	BigDecimal a3("-1", 8, 32), b3("15.64", 8, 32), c3("-15.64", 8, 32);
+	BigDecimal a4("-1", 8, 32), b4("-15.64", 8, 32), c4("15.64", 8, 32);
+	return (a1 * b1 == c1) && (a2 * b2 == c2) && (a3 * b3 == c3) && (a4 * b4 == c4);
+}
+
+bool test_division() {
+	BigDecimal a1("4"), b1("2"), c1("2");
+	return (a1 / b1 == c1);
 }
 
 
@@ -111,6 +148,26 @@ int main(int argc, char **argv) {
 		std::cout << "test8: OK\n";
 	else
 		std::cout << "test8: FAIL\n";
+	if (test_bool_operators()) 
+		std::cout << "test9: OK\n";
+	else
+		std::cout << "test9: FAIL\n";
+	if(test_integer_multiplication())
+		std::cout << "test10: OK\n";
+	else
+		std::cout << "test10: FAIL\n";
+	if (test_integer_fraction_multiplication())
+		std::cout << "test11: OK\n";
+	else
+		std::cout << "test11: FAIL\n";
+	if (test_fraction_fraction_multiplication())
+		std::cout << "test12: OK\n";
+	else
+		std::cout << "test12: FAIL\n";
+	if (test_division())
+		std::cout << "test13: OK\n";
+	else
+		std::cout << "test13: FAIL\n";
 }
 
 //int main() {
