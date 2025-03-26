@@ -5,6 +5,8 @@
 #include <cmath>
 #include <algorithm>
 #include <numeric>
+#include <sstream>
+#include <iomanip>
 
 using namespace std;
 
@@ -28,9 +30,10 @@ unsigned int reverse_mask(ll mask, int mask_length) {
 	return mask;
 }
 
-int convert_integer_to_base2(vector<ll>& big_integer, string source_integer, int bits_for_integer, int block_size) {
+int convert_integer_to_base2(vector<ll>& big_integer, string source_integer, int bits_for_integer, int block_size, int& exp_starts) {
 	if (source_integer == "0") {
 		big_integer.push_back(0);
+		exp_starts = 1;
 		return 0;
 	}
 	int added_bits = 0;
@@ -60,6 +63,7 @@ int convert_integer_to_base2(vector<ll>& big_integer, string source_integer, int
 			division_result = division_result.substr(1, division_result.length() - 1);
 		source_integer = division_result;
 	}
+	exp_starts = added_bits;
 	return source_integer != "0";
 }
 
@@ -95,13 +99,12 @@ int convert_fraction_to_base2(vector<ll>& big_fraction, int& exp_starts, string 
 		//cout << extra_addition << ' ' << addition_result << "\n";
 	}
 	//big_fraction.back() = reverse_mask(big_fraction.back(), added_bits % block_size);
-	exp_starts = added_bits % block_size;
 	return source_fraction != "0";
 }
 
-bool BigDecimal::compare_absolute_values(const BigDecimal& other) const{ // 1 - åñëè ìåíüøå, èíà÷å 0
-	if (big_integer.size() < other.big_integer.size() || big_integer.size() > other.big_integer.size())
-		return big_integer.size() < other.big_integer.size();
+bool BigDecimal::compare_absolute_values(const BigDecimal& other) const{ // 1 - ÐµÑÐ»Ð¸ Ð¼ÐµÐ½ÑŒÑˆÐµ, Ð¸Ð½Ð°Ñ‡Ðµ 0
+	if (other.exp_starts < exp_starts || exp_starts > other.exp_starts)
+		return exp_starts < other.exp_starts;
 
 	for (int i = big_integer.size() - 1; i > -1; i--){
 		if (big_integer[i] < other.big_integer[i])
@@ -137,11 +140,18 @@ BigDecimal::BigDecimal(string source, int given_integer, int given_fraction) {
 	while (source_integer_length < source.size() && source[source_integer_length] != '.')
 		source_integer_length++;
 
-	convert_integer_to_base2(big_integer, source.substr(sign, source_integer_length - sign), integer, base);
+	convert_integer_to_base2(big_integer, source.substr(sign, source_integer_length - sign), integer, base, exp_starts);
 	if (source.length() > source_integer_length)
 		convert_fraction_to_base2(big_fraction, exp_starts, source.substr(source_integer_length + 1, source.size() - source_integer_length), fraction, base);
 	else
 		big_fraction.push_back(0);
+	/*for (auto i : big_fraction) {
+		for (int j = 0; j < base; j++) {
+			cout << get_bit(i, j);
+		}
+		cout << ' ';
+	}
+	cout << endl;*/
 }
 
 BigDecimal& BigDecimal::operator=(const BigDecimal& other) {
@@ -159,7 +169,7 @@ BigDecimal& BigDecimal::operator=(const BigDecimal& other) {
 
 bool BigDecimal::operator==(const BigDecimal& other) const{
 	if (other.sign == sign) {
-		if (other.big_fraction.size() == big_fraction.size() && other.big_integer.size() == big_integer.size()) {
+		if (other.big_fraction.size() == big_fraction.size() && other.exp_starts == exp_starts) {
 			for (int i = 0; i < big_fraction.size();i++) {
 				if (big_fraction[i] != other.big_fraction[i])
 					return false;
@@ -174,6 +184,35 @@ bool BigDecimal::operator==(const BigDecimal& other) const{
 	}
 	return false;
 }
+
+bool BigDecimal::operator!=(const BigDecimal& other) const {
+	return !(*this == other);
+}
+
+bool BigDecimal::operator<(const BigDecimal& other) const {
+	if (*this == other) return false;
+	if (sign && !other.sign)
+		return true;
+	if (!sign && other.sign)
+		return false;
+	bool res = compare_absolute_values(other);
+	return (!res && sign) || (res && !sign);
+}
+
+bool BigDecimal::operator>(const BigDecimal& other) const {
+	if (*this == other) return false;
+	return !(*this < other);
+}
+
+bool BigDecimal::operator>=(const BigDecimal& other) const {
+	return !(*this < other);
+}
+
+bool BigDecimal::operator<=(const BigDecimal& other) const {
+	return !(*this > other);
+}
+
+
 
 const BigDecimal BigDecimal::operator+(const BigDecimal& b) const{
 	if (!sign && b.sign) {
@@ -229,6 +268,18 @@ const BigDecimal BigDecimal::operator+(const BigDecimal& b) const{
 
 	while (sum.big_integer.back() == 0 && sum.big_integer.size() > 1)
 		sum.big_integer.pop_back();
+
+	int greatest_block_integer_length = 0;
+	for (int i = base - 1; i >= 0; i--) {
+		if (get_bit(sum.big_integer.back(), i)) {
+			greatest_block_integer_length = i + 1;
+			break;
+		}
+	}
+	sum.exp_starts = base * (big_integer.size() - 1) + greatest_block_integer_length;
+	sum.integer = max(sum.integer, exp_starts);
+
+	if (sum.exp_starts == 0) sum.exp_starts = 1;
 
 	if (sum.big_fraction.size() == 1 && sum.big_fraction[0] == 0 && sum.big_integer.size() == 1 && sum.big_integer[0] == 0)
 		sum.sign = 0;
@@ -307,8 +358,172 @@ const BigDecimal BigDecimal::operator-(const BigDecimal& b) const {
 	while (difference.big_integer.back() == 0 && difference.big_integer.size() > 1)
 		difference.big_integer.pop_back();
 
+	int greatest_block_integer_length = 0;
+	for (int i = base - 1; i >= 0; i--) {
+		if (get_bit(difference.big_integer.back(), i)) {
+			greatest_block_integer_length = i + 1;
+			break;
+		}
+	}
+	difference.exp_starts = base * (big_integer.size() - 1) + greatest_block_integer_length;
+
+	if (difference.exp_starts == 0) difference.exp_starts = 1;
+	difference.integer = max(difference.integer, difference.exp_starts);
+
 	return difference;
 }
+
+void BigDecimal::operator+=(const BigDecimal& b) {
+	*this = *this + b;
+}
+
+void BigDecimal::operator-=(const BigDecimal& b) {
+	*this = *this - b;
+}
+
+bool is_zero(vector<long long>& number_part) {
+	return (number_part.size() == 1 && number_part[0] == 0);
+}
+
+const BigDecimal BigDecimal::operator*(const BigDecimal& b) const {
+	BigDecimal integer_multiplication("0", max(exp_starts + b.exp_starts, max(integer, b.integer)), max(fraction, b.fraction));
+	BigDecimal b_copy;
+	b_copy = b;
+	b_copy.big_fraction = { 0 };
+	for (int i = 0; i < exp_starts; i++) {
+		if (get_bit(big_integer[i / base], i % base))
+			integer_multiplication += b_copy;
+		b_copy += b_copy;
+		b_copy.exp_starts++;
+		b_copy.integer = max(b_copy.integer, b_copy.exp_starts);
+	}
+	BigDecimal integer_fraction_multiplication("0", max(exp_starts + b.exp_starts, max(integer, b.integer)), max(fraction, b.fraction));
+	BigDecimal b_fraction_copy;
+	b_fraction_copy = b;
+	b_fraction_copy.big_integer = { 0 };
+	b_fraction_copy.exp_starts = 1;
+
+	for (int i = 0; i < exp_starts; i++) {
+		if (get_bit(big_integer[i / base], i % base))
+			integer_fraction_multiplication += b_fraction_copy;
+		b_fraction_copy += b_fraction_copy;
+		if (b_fraction_copy.big_integer.size() == 1 && b_fraction_copy.big_integer[0] < 2)
+			b_fraction_copy.exp_starts = 1;
+		else
+			b_fraction_copy.exp_starts++;
+		b_fraction_copy.integer = max(b_fraction_copy.integer, b_fraction_copy.exp_starts);
+	}
+
+	BigDecimal fraction_integer_multiplication("0", max(exp_starts + b.exp_starts, max(integer, b.integer)), max(fraction, b.fraction));
+	BigDecimal a_fraction_copy;
+	a_fraction_copy = *this;
+	a_fraction_copy.big_integer = { 0 };
+	a_fraction_copy.exp_starts = 1;
+
+	for (int i = 0; i < b.exp_starts; i++) {
+		if (get_bit(b.big_integer[i / b.base], i % b.base))
+			fraction_integer_multiplication += a_fraction_copy;
+		a_fraction_copy += a_fraction_copy;
+		if (a_fraction_copy.big_integer.size() == 1 && a_fraction_copy.big_integer[0] < 2)
+			a_fraction_copy.exp_starts = 1;
+		else
+			a_fraction_copy.exp_starts++;
+		a_fraction_copy.integer = max(a_fraction_copy.integer, a_fraction_copy.exp_starts);
+	}
+
+	int new_precision = 1;
+	int max_precision = max(fraction, b.fraction);
+	while (new_precision < max_precision)
+		new_precision *= base;
+	BigDecimal fraction_multiplication("0", 8, new_precision);
+	BigDecimal b_fraction_copy2;
+	b_fraction_copy2 = b;
+	b_fraction_copy2.big_integer = { 0 };
+	b_fraction_copy2.exp_starts = 1;
+	while (b_fraction_copy2.big_fraction.size() < new_precision / base)
+		b_fraction_copy2.big_fraction.push_back(0);
+
+	for (int i = 0; i < big_fraction.size(); i++) {
+		for (int j = base - 1; j >= 0; j--) {
+			int lost_bit = 0;
+			for (int u = 0; u < new_precision / base; u++) {
+				insert_bit(b_fraction_copy2.big_fraction[u], base, lost_bit);
+				lost_bit = get_bit(b_fraction_copy2.big_fraction[u], 0);
+				b_fraction_copy2.big_fraction[u] >>= 1;
+			}
+			if (get_bit(big_fraction[i], j))
+				fraction_multiplication += b_fraction_copy2;
+			
+		}
+	}
+
+	BigDecimal result = integer_multiplication + integer_fraction_multiplication + fraction_integer_multiplication + fraction_multiplication;
+
+	if (sign != b.sign && (!is_zero(result.big_fraction) || !is_zero(result.big_integer))) {
+		result.sign = 1;
+	}
+	else {
+		result.sign = 0;
+	}
+
+	return result;
+}
+
+const BigDecimal BigDecimal::operator/(const BigDecimal& b) const {
+	if (b == BigDecimal("0")) {
+		throw std::invalid_argument("Division by zero");
+	}
+	BigDecimal quotient("0", max(integer, b.integer), max(fraction, b.fraction));
+	BigDecimal dividend, divisor;
+	dividend = *this; divisor = b;
+	quotient.sign = (sign != b.sign);
+	dividend.sign = 0;
+	divisor.sign = 0;
+	BigDecimal temp_dividend = dividend;
+	BigDecimal temp_divisor = divisor;
+	BigDecimal result("0", dividend.integer, dividend.fraction);
+
+	int max_integer_size = max(dividend.big_integer.size(), divisor.big_integer.size());
+	BigDecimal current_dividend("0", max_integer_size, dividend.fraction);
+	BigDecimal remainder("0", max_integer_size, dividend.fraction);
+	for (int i = 0; i < dividend.big_integer.size(); i++) {
+		remainder.big_integer.push_back(dividend.big_integer[i]);
+		int current_quotient_digit = 0;
+		while (remainder.compare_absolute_values(divisor) >= 0) {
+			remainder -= divisor;
+			current_quotient_digit++;
+		}
+		quotient.big_integer.push_back(current_quotient_digit);
+	}
+
+	BigDecimal current_fraction("0", dividend.integer, dividend.fraction);
+	current_fraction.exp_starts = dividend.exp_starts;
+
+	for (int i = 0; i < dividend.fraction; i++) {
+		current_fraction.big_integer.push_back(0);
+		int current_quotient_digit = 0;
+
+		while (current_fraction.compare_absolute_values(divisor) >= 0) {
+			current_fraction -= divisor;
+			current_quotient_digit++;
+		}
+		quotient.big_fraction.push_back(current_quotient_digit);
+	}
+	return quotient;
+}
+
+void BigDecimal::operator*=(const BigDecimal& b) {
+	*this = *this * b;
+}
+
+
+BigDecimal operator""_longnum(long double number) {
+	ostringstream oss;
+	oss << setprecision(std::numeric_limits<long double>::digits10) << number;
+	std::string numStr = oss.str();
+	return BigDecimal(numStr);
+}
+
 
 BigDecimal::~BigDecimal() {
 }
