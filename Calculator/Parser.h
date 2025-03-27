@@ -7,9 +7,12 @@
 #include <cctype>
 #include <stdexcept>
 #include <vector>
+#include <complex>
+#include <iostream>
 #include <map>
 
 using namespace std;
+using Complex = std::complex<double>;
 
 enum TokenType { START, FUNC, NUM, VAR, OP };
 
@@ -27,7 +30,7 @@ class Parser {
     }
 
     bool is_number_minus() {
-        return (tokens.back() == START || tokens.back() == OP || tokens.back() == FUNC);
+        return (tokens.back() == START || tokens.back() == OP);
     }
 
     shared_ptr<Expression<T> > parse_num_exp() {
@@ -50,6 +53,7 @@ class Parser {
         }
         if (var.length() != 1) throw runtime_error(
             "Syntax error in expression: variable can be expressed only in one letter");
+
         return make_shared<VarExpression<T> >(var);
     }
 
@@ -69,31 +73,31 @@ class Parser {
         if (scope_end - pos == 1) {
             throw runtime_error("Syntax error in expression: empty brackets");
         }
-        Parser scope(input.substr(pos + 1, scope_end - pos - 1));
+        auto scope_expr = input.substr(pos + 1, scope_end - pos - 1);
+        Parser scope(scope_expr);
         auto expr = scope.parse();
         pos = scope_end + 1;
         return expr;
     }
 
-    void add_func(char op) {
-        if (tokens.back() != START && tokens.back() != OP && tokens.back() != FUNC)
+    void add_func(char op, int len) {
+        if (tokens.back() != START && tokens.back() != OP)
             throw runtime_error("Syntax error in expression");
 
-        auto null = std::make_shared<NumExpression<T>>(0);
-        auto func = std::make_shared<MonoExpression<T>>(null, op);
-        if (tokens.back() == START)
-            exprs.push_back(func);
-        else if (tokens.back() == OP) {
+        pos += len;
+        if (input[pos] != '(')
+            throw runtime_error("Syntax error in expression: after function missed '('");
+        auto in_expr = parse_brackets();
+        auto func = std::make_shared<MonoExpression<T>>(in_expr, op);
+        if (tokens.back() == OP) {
             exprs.back()->set_right(func);
-            exprs.push_back(func);
         }
-        else
-            exprs.back()->set_expr(func);
+        exprs.push_back(func);
         tokens.push_back(FUNC);
     }
 
     void add_binary(char op) {
-        if (tokens.back() != NUM && tokens.back() != VAR)
+        if (tokens.back() != NUM && tokens.back() != VAR && tokens.back() != FUNC)
             throw runtime_error("Syntax error in expression");
         auto left = exprs.back();
         exprs.pop_back();
@@ -106,32 +110,23 @@ class Parser {
         while (pos < input.size()) {
             skip();
             if (input[pos] == '(') {
-                if (tokens.back() != START && tokens.back() != OP && tokens.back() != FUNC)
+                if (tokens.back() != START && tokens.back() != OP)
                     throw runtime_error("Syntax error in expression");
                 auto scope_eval = parse_brackets();
 
-                if (tokens.back() == START) {
-                    exprs.push_back(scope_eval);
-                }
-                else if (tokens.back() == OP) {
+               if (tokens.back() == OP) {
                     exprs.back()->set_right(scope_eval);
-                    exprs.push_back(scope_eval);
                 }
-                else
-                    exprs.back()->set_expr(scope_eval);
+                exprs.push_back(scope_eval);
                 tokens.push_back(NUM);
             } else if (pos + 1 < input.size() && input.substr(pos, 2) == "ln") {
-                add_func('l');
-                pos += 2;
+                add_func('l', 2);
             } else if (pos + 2 < input.size() && input.substr(pos, 3) == "exp") {
-                add_func('e');
-                pos += 3;
+                add_func('e', 3);
             } else if (pos + 2 < input.size() && input.substr(pos, 3) == "cos") {
-                add_func('c');
-                pos += 3;
+                add_func('c', 3);
             } else if (pos + 2 < input.size() && input.substr(pos, 3) == "sin") {
-                add_func('s');
-                pos += 3;
+                add_func('s', 3);
             } else if (input[pos] == '^') {
                 add_binary('^');
             } else if (input[pos] == '/') {
@@ -147,37 +142,29 @@ class Parser {
                 tokens.push_back(NUM);
                 add_binary('-');
             } else if (isdigit(input[pos])) {
-                if (tokens.back() != START && tokens.back() != OP && tokens.back() != FUNC)
+                if (tokens.back() != START && tokens.back() != OP)
                     throw runtime_error("Syntax error in expression");
                 auto number = parse_num_exp();
-                if (tokens.back() == START)
-                    exprs.push_back(number);
-                else if (tokens.back() == OP) {
+                if (tokens.back() == OP) {
                     exprs.back()->set_right(number);
-                    exprs.push_back(number);
                 }
-                else
-                    exprs.back()->set_expr(number);
+                exprs.push_back(number);
                 tokens.push_back(NUM);
             } else if (isalpha(input[pos])) {
-                if (tokens.back() != START && tokens.back() != OP && tokens.back() != FUNC)
+                if (tokens.back() != START && tokens.back() != OP)
                     throw runtime_error("Syntax error in expression");
                 auto var = parse_var_exp();
-                if (tokens.back() == START)
-                    exprs.push_back(var);
-                else if (tokens.back() == OP) {
+                if (tokens.back() == OP) {
                     exprs.back()->set_right(var);
-                    exprs.push_back(var);
                 }
-                else
-                    exprs.back()->set_expr(var);
+                exprs.push_back(var);
                 tokens.push_back(VAR);
             } else
                 throw runtime_error("Syntax error in expression: unknown symbol " + input[pos]);
         }
-        if (tokens.back() != NUM && tokens.back() != VAR)
+        if (tokens.back() != NUM && tokens.back() != VAR && tokens.back() != FUNC)
             throw runtime_error("Syntax error in expression");
-        if (tokens[tokens.size() - 2] != FUNC || tokens.size() <= 2)
+        if (tokens.size() > 2)
             exprs.pop_back();
     }
 
@@ -194,12 +181,11 @@ class Parser {
         for (int i = exprs.size() - 1; i >= 0; i--) {
             if (exprs[i]->get_op()) {
                 auto op = exprs[i]->get_op();
+
                 if (op == '^') {
                     apply_expr(i);
                     return true;
                 }
-                else if (!op || isalpha(op))
-                    throw runtime_error("Syntax error in expression");
             }
         }
         return false;
@@ -213,8 +199,6 @@ class Parser {
                     apply_expr(i);
                     return true;
                 }
-                else if (!op || isalpha(op))
-                    throw runtime_error("Syntax error in expression");
             }
         }
         return false;
@@ -228,8 +212,6 @@ class Parser {
                     apply_expr(i);
                     return true;
                 }
-                else if (!op || isalpha(op))
-                    throw runtime_error("Syntax error in expression");
             }
         }
         return false;
