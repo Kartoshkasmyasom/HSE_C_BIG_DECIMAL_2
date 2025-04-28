@@ -42,7 +42,7 @@ class Parser {
         }
         if (dots > 1) throw runtime_error("Syntax error in expression");
         string number = input.substr(start, pos - start);
-        return make_shared<NumExpression<T> >(stod(number));
+        return make_shared<NumExpression<T> >(stoll(number));
     }
 
     shared_ptr<Expression<T> > parse_var_exp() {
@@ -62,7 +62,8 @@ class Parser {
         for (; scope_end < input.size(); scope_end++) {
             if (input[scope_end] == '(') {
                 balance++;
-            } else if (input[scope_end] == ')')
+            }
+            else if (input[scope_end] == ')')
                 balance--;
             if (balance == 0) {
                 break;
@@ -101,7 +102,7 @@ class Parser {
             throw runtime_error("Syntax error in expression");
         auto left = exprs.back();
         exprs.pop_back();
-        exprs.push_back(make_shared<BinaryExpression<T> > (left, nullptr, op));
+        exprs.push_back(make_shared<BinaryExpression<T> >(left, nullptr, op));
         tokens.push_back(OP);
         pos++;
     }
@@ -114,43 +115,57 @@ class Parser {
                     throw runtime_error("Syntax error in expression");
                 auto scope_eval = parse_brackets();
 
-               if (tokens.back() == OP) {
+                if (tokens.back() == OP) {
                     exprs.back()->set_right(scope_eval);
                 }
-                exprs.push_back(scope_eval);
+                else
+                    exprs.push_back(scope_eval);
                 tokens.push_back(NUM);
-            } else if (pos + 1 < input.size() && input.substr(pos, 2) == "ln") {
+            }
+            else if (pos + 1 < input.size() && input.substr(pos, 2) == "ln") {
                 add_func('l', 2);
-            } else if (pos + 2 < input.size() && input.substr(pos, 3) == "exp") {
+            }
+            else if (pos + 2 < input.size() && input.substr(pos, 3) == "exp") {
                 add_func('e', 3);
-            } else if (pos + 2 < input.size() && input.substr(pos, 3) == "cos") {
+            }
+            else if (pos + 2 < input.size() && input.substr(pos, 3) == "cos") {
                 add_func('c', 3);
-            } else if (pos + 2 < input.size() && input.substr(pos, 3) == "sin") {
+            }
+            else if (pos + 2 < input.size() && input.substr(pos, 3) == "sin") {
                 add_func('s', 3);
-            } else if (input[pos] == '^') {
+            }
+            else if (input[pos] == '^') {
                 add_binary('^');
-            } else if (input[pos] == '/') {
+            }
+            else if (input[pos] == '/') {
                 add_binary('/');
-            } else if (input[pos] == '*') {
+            }
+            else if (input[pos] == '*') {
                 add_binary('*');
-            } else if (input[pos] == '+') {
+            }
+            else if (input[pos] == '+') {
                 add_binary('+');
-            } else if (input[pos] == '-' && !is_number_minus()) {
+            }
+            else if (input[pos] == '-' && !is_number_minus()) {
                 add_binary('-');
-            } else if (input[pos] == '-') {
-                exprs.push_back( make_shared<NumExpression<T> > (0));
+            }
+            else if (input[pos] == '-') {
+                exprs.push_back(make_shared<NumExpression<T> >(0));
                 tokens.push_back(NUM);
                 add_binary('-');
-            } else if (isdigit(input[pos])) {
+            }
+            else if (isdigit(input[pos])) {
                 if (tokens.back() != START && tokens.back() != OP)
                     throw runtime_error("Syntax error in expression");
                 auto number = parse_num_exp();
                 if (tokens.back() == OP) {
                     exprs.back()->set_right(number);
                 }
-                exprs.push_back(number);
+                else
+                    exprs.push_back(number);
                 tokens.push_back(NUM);
-            } else if (isalpha(input[pos])) {
+            }
+            else if (isalpha(input[pos])) {
                 if (tokens.back() != START && tokens.back() != OP)
                     throw runtime_error("Syntax error in expression");
                 auto var = parse_var_exp();
@@ -159,13 +174,17 @@ class Parser {
                 }
                 exprs.push_back(var);
                 tokens.push_back(VAR);
-            } else
-                throw runtime_error("Syntax error in expression: unknown symbol " + input[pos]);
+            }
+            else {
+                //throw runtime_error("Syntax error in expression: unknown symbol " + input[pos]);
+                if (pos >= input.size())
+                    return;
+            }
         }
         if (tokens.back() != NUM && tokens.back() != VAR && tokens.back() != FUNC)
             throw runtime_error("Syntax error in expression");
-        if (tokens.size() > 2)
-            exprs.pop_back();
+        /*if (tokens.size() > 2)
+            exprs.pop_back();*/
     }
 
     void apply_expr(int ind) {
@@ -205,7 +224,7 @@ class Parser {
     }
 
     bool find_additions() {
-        for (int i = 0; i < exprs.size(); i++) {
+        for (int i = exprs.size() - 1; i >= 0; i--) {
             if (exprs[i]->get_op()) {
                 auto op = exprs[i]->get_op();
                 if (op == '+' || op == '-') {
@@ -218,11 +237,13 @@ class Parser {
     }
 
 public:
-    Parser(const string &input): input(input), pos(0), tokens({START}) {
+    Parser(const string& input) : input(input), pos(0), tokens({ START }) {
     }
 
     shared_ptr<Expression<T>> parse() {
         parse_exp();
+
+
         while (exprs.size() > 1) {
             bool have_power = find_power();
             if (!have_power) {
@@ -230,11 +251,10 @@ public:
                 if (!have_multi) {
                     bool have_add = find_additions();
                     if (!have_add) throw runtime_error("Syntax error in expression");
+
                 }
             }
         }
         return exprs.back();
     }
 };
-
-#endif
